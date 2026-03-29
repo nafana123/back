@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    container_name: back-app
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app        
+      - /tmp/air
+    command: air -c .air.toml
+    environment:
+      GO111MODULE: "on"

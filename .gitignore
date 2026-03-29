@@ -1,0 +1,9 @@
+tmp/
+tmp/air/
+
+pkg/mod/
+
+*.log
+
+.vscode/
+.idea/
