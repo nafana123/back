@@ -1,9 +1,9 @@
 package router
 
 import (
+	"back/internal/config"
 	auth "back/internal/handler/auth"
 	"back/internal/handler/health"
-	"back/internal/config"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -27,6 +27,9 @@ func New(log *zap.Logger, cfg *config.Config) http.Handler {
 
 	r.Get("/api/health", health.HealthHandler)
 	r.Post("/api/auth/telegram", authHandler.Auth)
+
+	r.Get("/api/auth/steam/login", authHandler.SteamLogin)
+	r.Get("/api/auth/steam/callback", authHandler.SteamCallback)
 
 	return r
 }
