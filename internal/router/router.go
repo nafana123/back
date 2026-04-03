@@ -26,9 +26,9 @@ func New(log *zap.Logger, cfg *config.Config) http.Handler {
 	authHandler := auth.NewAuthHandler(log, cfg)
 
 	r.Get("/api/health", health.HealthHandler)
-	r.Post("/api/auth/telegram", authHandler.Auth)
+	r.Post("/api/auth/telegram", authHandler.TelegramAuth)
 
-	r.Get("/api/auth/steam/login", authHandler.SteamLogin)
+	r.Get("/api/auth/steam", authHandler.SteamAuth)
 	r.Get("/api/auth/steam/callback", authHandler.SteamCallback)
 
 	return r

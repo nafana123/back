@@ -1,4 +1,4 @@
-package auth
+package telegram
 
 import (
 	authdto "back/internal/dto/auth"
