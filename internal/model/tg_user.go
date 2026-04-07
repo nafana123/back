@@ -1,17 +1,15 @@
-package auth
+package model
 
-import "back/internal/model"
-
-type UserData struct {
-	ID           int64  `json:"id"`
+type TgUser struct {
+	ID           int64  `json:"id" gorm:"primaryKey"`
 	FirstName    string `json:"first_name"`
 	LastName     string `json:"last_name"`
 	Username     string `json:"username"`
 	LanguageCode string `json:"language_code"`
 	PhotoURL     string `json:"photo_url"`
+	Role         string `json:"role" gorm:"default:user"`
 }
 
-type AuthResponse struct {
-	Token string      `json:"token"`
-	User  *model.TgUser `json:"user"`
+func (TgUser) TableName() string {
+	return "tg_user"
 }

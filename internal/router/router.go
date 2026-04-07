@@ -1,8 +1,7 @@
 package router
 
 import (
-	"back/internal/config"
-	auth "back/internal/handler/auth"
+	"back/internal/handler/auth"
 	"back/internal/handler/health"
 	"net/http"
 
@@ -11,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func New(log *zap.Logger, cfg *config.Config) http.Handler {
+func New(log *zap.Logger, authHandler *auth.AuthHandler) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(cors.Handler(cors.Options{
@@ -23,13 +22,15 @@ func New(log *zap.Logger, cfg *config.Config) http.Handler {
 		MaxAge:           300,
 	}))
 
-	authHandler := auth.NewAuthHandler(log, cfg)
-
 	r.Get("/api/health", health.HealthHandler)
-	r.Post("/api/auth/telegram", authHandler.TelegramAuth)
 
-	r.Get("/api/auth/steam", authHandler.SteamAuth)
-	r.Get("/api/auth/steam/callback", authHandler.SteamCallback)
+	r.Route("/api/auth", func(r chi.Router) {
+		r.Post("/telegram", authHandler.TelegramAuth)
+		r.Post("/registration", authHandler.Registration)
+		r.Post("/login", authHandler.Login)
+		r.Get("/steam", authHandler.SteamAuth)
+		r.Get("/steam/callback", authHandler.SteamCallback)
+	})
 
 	return r
 }

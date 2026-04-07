@@ -3,16 +3,29 @@ package telegram
 import (
 	authdto "back/internal/dto/auth"
 	"back/internal/model"
+	"back/internal/repository"
 	"fmt"
 	"time"
-
-	userRepository "back/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
 	initdata "github.com/telegram-mini-apps/init-data-golang"
 )
 
-func TelegramAuth(data, botToken, jwtSecret string) (*authdto.AuthResponse, error) {
+type TelegramService interface {
+	TelegramAuth(data, botToken, jwtSecret string) (*authdto.AuthResponse, error)
+}
+
+type telegramService struct {
+	userRepo repository.TgUserRepository
+}
+
+func NewTelegramService(userRepo repository.TgUserRepository) TelegramService {
+	return &telegramService{
+		userRepo: userRepo,
+	}
+}
+
+func (s *telegramService) TelegramAuth(data, botToken, jwtSecret string) (*authdto.AuthResponse, error) {
 	if err := initdata.Validate(data, botToken, 24*time.Hour); err != nil {
 		return nil, fmt.Errorf("Невалидный initData: %w", err)
 	}
@@ -24,7 +37,7 @@ func TelegramAuth(data, botToken, jwtSecret string) (*authdto.AuthResponse, erro
 
 	tgUser := parsed.User
 
-	user := &model.User{
+	user := &model.TgUser{
 		ID:           tgUser.ID,
 		FirstName:    tgUser.FirstName,
 		LastName:     tgUser.LastName,
@@ -34,11 +47,11 @@ func TelegramAuth(data, botToken, jwtSecret string) (*authdto.AuthResponse, erro
 		Role:         "user",
 	}
 
-	if err := userRepository.UpsertUser(user); err != nil {
+	if err := s.userRepo.UpsertUser(user); err != nil {
 		return nil, fmt.Errorf("Ошибка сохранения пользователя: %w", err)
 	}
 
-	token, err := generateJWT(user, jwtSecret)
+	token, err := s.generateJWT(user, jwtSecret)
 	if err != nil {
 		return nil, fmt.Errorf("Ошибка генерации токена: %w", err)
 	}
@@ -49,7 +62,7 @@ func TelegramAuth(data, botToken, jwtSecret string) (*authdto.AuthResponse, erro
 	}, nil
 }
 
-func generateJWT(user *model.User, secret string) (string, error) {
+func (s *telegramService) generateJWT(user *model.TgUser, secret string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": user.ID,
 		"role":    user.Role,

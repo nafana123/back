@@ -1,6 +1,7 @@
 package steam
 
 import (
+	"back/internal/config"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,22 +10,37 @@ import (
 	"strings"
 )
 
-func SteamParams() string {
+type SteamService interface {
+	GetAuthURL() string
+	ValidateAndGetProfile(params url.Values) ([]byte, error)
+}
+
+type steamService struct {
+	cfg *config.Config
+}
+
+func NewSteamService(cfg *config.Config) SteamService {
+	return &steamService{
+		cfg: cfg,
+	}
+}
+
+func (s *steamService) GetAuthURL() string {
 	steamLoginURL := "https://steamcommunity.com/openid/login"
-	callbackURL := "http://localhost:8080/api/auth/steam/callback"
+	callbackURL := s.cfg.SteamCallbackURL
 
 	params := url.Values{}
 	params.Set("openid.ns", "http://specs.openid.net/auth/2.0")
 	params.Set("openid.mode", "checkid_setup")
 	params.Set("openid.return_to", callbackURL)
-	params.Set("openid.realm", "http://localhost:8080")
+	params.Set("openid.realm", s.cfg.SteamRealm)
 	params.Set("openid.identity", "http://specs.openid.net/auth/2.0/identifier_select")
 	params.Set("openid.claimed_id", "http://specs.openid.net/auth/2.0/identifier_select")
 
 	return fmt.Sprintf("%s?%s", steamLoginURL, params.Encode())
 }
 
-func ValidateSteamResponse(params url.Values) ([]byte, error) {
+func (s *steamService) ValidateAndGetProfile(params url.Values) ([]byte, error) {
 	validationParams := url.Values{}
 
 	for key, values := range params {
@@ -61,7 +77,7 @@ func ValidateSteamResponse(params url.Values) ([]byte, error) {
 		steamID = parts[len(parts)-1]
 	}
 
-	userData, err := getSteamUserProfile(steamID)
+	userData, err := s.getSteamUserProfile(steamID)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка получения данных %w", err)
 	}
@@ -74,8 +90,8 @@ func ValidateSteamResponse(params url.Values) ([]byte, error) {
 	return jsonData, nil
 }
 
-func getSteamUserProfile(steamID string) (map[string]interface{}, error) {
-	apiURL := fmt.Sprintf("http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=%s&steamids=%s", "87A337265F5625C3FEC8913E7FAB81E7", steamID)
+func (s *steamService) getSteamUserProfile(steamID string) (map[string]interface{}, error) {
+	apiURL := fmt.Sprintf("http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=%s&steamids=%s", s.cfg.SteamAPIKey, steamID)
 
 	resp, err := http.Get(apiURL)
 	if err != nil {
