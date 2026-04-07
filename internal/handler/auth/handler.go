@@ -140,7 +140,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case userService.ErrInvalidCredentials:
-			msgError := userdto.ErrorResponse{Error: "Неверный логин или пароль", Field: "login"}
+			msgError := userdto.ErrorResponse{Error: "Неверный логин или пароль", Field: "email"}
 			httputils.RespondJSON(w, http.StatusUnauthorized, msgError)
 			return
 		default:
