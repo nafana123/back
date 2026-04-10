@@ -1,22 +1,24 @@
 package service
 
-import "back/internal/repository"
+import (
+	"back/internal/model"
+	"back/internal/repository"
+)
 
 type GameService struct {
-	tournamentRepo *repository.TournamentRepository
-	gameRepo       *repository.GameRepository
+	gameRepo *repository.GameRepository
 }
 
-func NewGameService(tournamentRepo *repository.TournamentRepository, gameRepo *repository.GameRepository) *GameService {
-	if tournamentRepo == nil {
-		panic("tournamentRepo cannot be nil")
-	}
+func NewGameService(gameRepo *repository.GameRepository) *GameService {
 	if gameRepo == nil {
 		panic("gameRepo cannot be nil")
 	}
 
 	return &GameService{
-		tournamentRepo: tournamentRepo,
-		gameRepo:       gameRepo,
+		gameRepo: gameRepo,
 	}
+}
+
+func (service *GameService) GetAllGames() ([]model.Game, error) {
+	return service.gameRepo.GetAll()
 }

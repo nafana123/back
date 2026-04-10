@@ -1,0 +1,258 @@
+{
+  "info": {
+    "_postman_id": "f24e2a5b-988e-4603-862c-65fe1b0e37af",
+    "name": "Tournify",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "32019996"
+  },
+  "item": [
+    {
+      "name": "Tournament",
+      "item": [
+        {
+          "name": "Participant",
+          "item": [
+            {
+              "name": "Присоединиться к турниру",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzU3NTI1ODYsInJvbGUiOiJ1c2VyIiwidXNlcl9pZCI6MX0.fJnaKutpQf03SupDCJHlkxXBKFXYgiyFkmZxzh2JIhc",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{host}}/tournaments/:id/join",
+                  "host": [
+                    "{{host}}"
+                  ],
+                  "path": [
+                    "tournaments",
+                    ":id",
+                    "join"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": "2"
+                    }
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Участники",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{host}}/tournaments/:id/participants",
+                  "host": [
+                    "{{host}}"
+                  ],
+                  "path": [
+                    "tournaments",
+                    ":id",
+                    "participants"
+                  ],
+                  "variable": [
+                    {
+                      "key": "id",
+                      "value": ""
+                    }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Турниры",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{host}}/tournaments",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "tournaments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Турнир",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{host}}/tournaments/:id",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "tournaments",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Добавить турнир",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"title\": \"Dota 2 Championship Summer 2026\",\r\n    \"prize_pool\": 1000,\r\n    \"entry_fee\": 100.00,\r\n    \"start_date\": \"2026-06-01T10:00:00Z\",\r\n    \"end_date\": \"2026-06-07T18:00:00Z\",\r\n    \"description\": \"The biggest Dota 2 tournament of the summer\",\r\n    \"rules\": \"Standard competitive rules. Best of 3 matches.\",\r\n    \"max_players\": 8,\r\n    \"format\": 1,\r\n    \"game_id\": 1\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{host}}/admin/tournaments",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "tournaments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Смена статуса",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{host}}/admin/tournaments/:id/status",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "admin",
+                "tournaments",
+                ":id",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Регистрация",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"login\": \"qwerty\",\r\n    \"email\": \"vladoperation@bk.ru\",\r\n    \"password\": \"111111\",\r\n    \"password_confirm\": \"111111\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{host}}/auth/registration",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "registration"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Авторизация",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"email\": \"vladoperation@bk.ru\",\r\n    \"password\": \"111111\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{host}}/auth/login",
+              "host": [
+                "{{host}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Game",
+      "item": [
+        {
+          "name": "Игры",
+          "request": {
+            "method": "GET",
+            "header": []
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

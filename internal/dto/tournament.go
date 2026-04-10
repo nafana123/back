@@ -57,7 +57,7 @@ func (req *CreateTournamentRequest) ToModel() *model.Tournament {
 		Format:         req.Format,
 		GameID:         req.GameID,
 		CurrentPlayers: 0,
-		Status:         "register",
+		Status:         "registration",
 		CreatedAt:      time.Now(),
 	}
 }

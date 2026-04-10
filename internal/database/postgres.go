@@ -1,11 +1,10 @@
 package database
 
 import (
+	"back/internal/model"
 	"fmt"
 
 	"back/internal/config"
-	"back/internal/model"
-
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -27,7 +26,7 @@ func Connect(logger *zap.Logger, cfg *config.Config) *gorm.DB {
 	}
 
 	// Автомиграция моделей
-	if err := db.AutoMigrate(&model.User{}, &model.TgUser{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.TgUser{}, &model.Game{}, &model.Tournament{}, &model.Participant{}); err != nil {
 		logger.Fatal("Ошибка миграции", zap.Error(err))
 	}
 

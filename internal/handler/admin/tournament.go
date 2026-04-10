@@ -2,6 +2,7 @@ package admin
 
 import (
 	"back/internal/dto"
+	"back/internal/middleware"
 	"back/internal/service"
 	"encoding/json"
 	"github.com/go-chi/chi/v5"
@@ -116,5 +117,41 @@ func (h *TournamentHandler) ChangeTournamentStatus(w http.ResponseWriter, r *htt
 
 func (h *TournamentHandler) JoinTournament(w http.ResponseWriter, r *http.Request) {
 	tournamentId := chi.URLParam(r, "id")
+	userId, ok := middleware.GetUserID(r.Context())
 
+	if !ok {
+		http.Error(w, `{"error" : "Unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	req := &dto.JoinTournamentRequest{
+		TournamentID: tournamentId,
+		UserID:       userId,
+	}
+
+	participant, err := h.tournamentService.JoinTournament(req)
+	if err != nil {
+		h.logger.Error("Failed to join tournament", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(participant)
+}
+
+func (h *TournamentHandler) GetParticipants(w http.ResponseWriter, r *http.Request) {
+	tournamentId := chi.URLParam(r, "id")
+
+	participants, err := h.tournamentService.GetParticipantsByTournament(tournamentId)
+	if err != nil {
+		h.logger.Error("Failed to get participants", zap.Error(err))
+		http.Error(w, "Failed to get participants", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(participants)
 }

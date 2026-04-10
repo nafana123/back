@@ -4,24 +4,25 @@ import (
 	"back/internal/dto"
 	"back/internal/model"
 	"back/internal/repository"
+	"fmt"
 )
 
 type TournamentService struct {
-	tournamentRepo *repository.TournamentRepository
-	gameRepo       *repository.GameRepository
+	tournamentRepo  *repository.TournamentRepository
+	participantRepo *repository.ParticipantRepository
 }
 
-func NewTournamentService(tournamentRepo *repository.TournamentRepository, gameRepo *repository.GameRepository) *TournamentService {
+func NewTournamentService(tournamentRepo *repository.TournamentRepository, participantRepo *repository.ParticipantRepository) *TournamentService {
 	if tournamentRepo == nil {
 		panic("tournamentRepo cannot be nil")
 	}
-	if gameRepo == nil {
-		panic("gameRepo cannot be nil")
+	if participantRepo == nil {
+		panic("participantRepo cannot be nil")
 	}
 
 	return &TournamentService{
-		tournamentRepo: tournamentRepo,
-		gameRepo:       gameRepo,
+		tournamentRepo:  tournamentRepo,
+		participantRepo: participantRepo,
 	}
 }
 
@@ -43,7 +44,7 @@ func (s *TournamentService) CreateTournament(data *dto.CreateTournamentRequest) 
 	return tournament, nil
 }
 
-func (s *TournamentService) ChangeStatus(id string, status string) error {
+func (s *TournamentService) ChangeStatus(id, status string) error {
 	tournament, err := s.tournamentRepo.GetById(id)
 
 	if err != nil {
@@ -65,4 +66,46 @@ func (s *TournamentService) ChangeStatus(id string, status string) error {
 	}
 
 	return nil
+}
+
+func (s *TournamentService) JoinTournament(data *dto.JoinTournamentRequest) (*model.Participant, error) {
+	tournament, err := s.tournamentRepo.GetById(data.TournamentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if tournament.Status != model.StatusRegistration {
+		return nil, fmt.Errorf("tournament is not open for registration")
+	}
+
+	if tournament.CurrentPlayers >= tournament.MaxPlayers {
+		return nil, fmt.Errorf("tournament is full")
+	}
+
+	exists, err := s.participantRepo.Exists(data.TournamentID, data.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, fmt.Errorf("already joined")
+	}
+
+	participant := data.ToModel()
+	if err := s.participantRepo.Create(participant); err != nil {
+		return nil, err
+	}
+
+	// todo тут нужна логика оплаты либо с кошелька юзера либо напряму
+
+	tournament.CurrentPlayers++
+
+	if err := s.tournamentRepo.Update(tournament); err != nil {
+		return nil, err
+	}
+
+	return participant, nil
+}
+
+func (s *TournamentService) GetParticipantsByTournament(tournamentId string) ([]model.Participant, error) {
+	return s.participantRepo.GetByTournament(tournamentId)
 }

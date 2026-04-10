@@ -9,6 +9,8 @@ type Participant struct {
 	JoinedAt     time.Time `json:"joined_at" gorm:"default:CURRENT_TIMESTAMP"`
 	Place        int       `json:"place" gorm:"default:0"`
 	PrizeWon     float64   `json:"prize_won" gorm:"default:0"`
+
+	User User `json:"user" gorm:"foreignKey:UserID"`
 }
 
 func (Participant) TableName() string {

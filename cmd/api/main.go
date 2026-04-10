@@ -1,6 +1,7 @@
 package main
 
 import (
+	"back/pkg/jwt"
 	"log"
 	"net/http"
 
@@ -9,15 +10,19 @@ import (
 	"back/internal/handler/auth"
 	"back/internal/logger"
 	"back/internal/repository"
+	"back/internal/router"
 	steamService "back/internal/service/steam"
 	telegramService "back/internal/service/telegram"
 	userService "back/internal/service/user"
-	"back/internal/router"
-
+	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
 
 func main() {
+	if err := godotenv.Load(".env"); err != nil {
+		log.Println(".env файл не загружен")
+	}
+
 	logg := logger.New()
 	defer logg.Sync()
 
@@ -32,8 +37,9 @@ func main() {
 	steamSvc := steamService.NewSteamService(cfg)
 
 	authHandler := auth.NewAuthHandler(logg, cfg, userSvc, telegramSvc, steamSvc)
+	jwtService := jwt.NewService(cfg.JWTSecret)
 
-	server := router.New(logg, authHandler)
+	server := router.New(logg, authHandler, db, jwtService)
 
 	log.Println("Сервер запущен на 127.0.0.1:8080")
 	if err := http.ListenAndServe("0.0.0.0:8080", server); err != nil {

@@ -1,9 +1,9 @@
 root = "."
-tmp_dir = "/tmp/air"  # Временные сборки в tmp, не вмонтированные в проект
+tmp_dir = "tmp"
 
 [build]
-cmd = "go build -o /tmp/air/main ./cmd/api"
-bin = "/tmp/air/main"
+cmd = "go build -o tmp/main.exe ./cmd/api"
+bin = "tmp/main.exe"
 include_ext = ["go"]
 exclude_dir = ["vendor"]
 delay = 500
