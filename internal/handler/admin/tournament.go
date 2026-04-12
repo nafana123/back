@@ -3,20 +3,20 @@ package admin
 import (
 	"back/internal/dto"
 	"back/internal/middleware"
-	"back/internal/service"
+	"back/internal/service/tournament"
+	"back/pkg/httputils"
 	"encoding/json"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
-	"io"
 	"net/http"
 )
 
 type TournamentHandler struct {
 	logger            *zap.Logger
-	tournamentService *service.TournamentService
+	tournamentService *tournament.TournamentService
 }
 
-func NewTournamentHandler(logger *zap.Logger, tournamentService *service.TournamentService) *TournamentHandler {
+func NewTournamentHandler(logger *zap.Logger, tournamentService *tournament.TournamentService) *TournamentHandler {
 	return &TournamentHandler{
 		logger:            logger,
 		tournamentService: tournamentService,
@@ -32,9 +32,7 @@ func (h *TournamentHandler) GetTournaments(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(tournaments)
+	httputils.RespondJSON(w, http.StatusOK, tournaments)
 }
 
 func (h *TournamentHandler) GetTournament(w http.ResponseWriter, r *http.Request) {
@@ -48,28 +46,19 @@ func (h *TournamentHandler) GetTournament(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(tournament)
+	httputils.RespondJSON(w, http.StatusOK, tournament)
 }
 
 func (h *TournamentHandler) CreateTournament(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-
+	var body dto.CreateTournamentRequest
+	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		http.Error(w, "Failed to read body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	var req dto.CreateTournamentRequest
-
-	if err := json.Unmarshal(body, &req); err != nil {
-		http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+		h.logger.Error("Failed to decode request", zap.Error(err))
+		http.Error(w, "Failed to decode request", http.StatusBadRequest)
 		return
 	}
 
-	tournament, err := h.tournamentService.CreateTournament(&req)
+	tournament, err := h.tournamentService.CreateTournament(&body)
 
 	if err != nil {
 		h.logger.Error("Failed to create tournament", zap.Error(err))
@@ -78,41 +67,27 @@ func (h *TournamentHandler) CreateTournament(w http.ResponseWriter, r *http.Requ
 
 	response := dto.ToResponse(tournament)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(response)
+	httputils.RespondJSON(w, http.StatusCreated, response)
 }
 
 func (h *TournamentHandler) ChangeTournamentStatus(w http.ResponseWriter, r *http.Request) {
 	tournamentId := chi.URLParam(r, "id")
-	body, err := io.ReadAll(r.Body)
 
+	var body dto.StatusUpdateRequest
+
+	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		http.Error(w, "Failed to read body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	var req struct {
-		Status string `json:"status"`
-	}
-
-	if err := json.Unmarshal(body, &req); err != nil {
-		http.Error(w, "Failed to parse request body", http.StatusBadRequest)
+		h.logger.Error("Failed to decode request", zap.Error(err))
+		http.Error(w, "Failed to decode request", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.tournamentService.ChangeStatus(tournamentId, req.Status); err != nil {
+	if err := h.tournamentService.ChangeStatus(tournamentId, body.Status); err != nil {
 		http.Error(w, "Failed to change tournament status", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  req.Status,
-		"message": "success",
-	})
+	httputils.RespondNoContent(w)
 }
 
 func (h *TournamentHandler) JoinTournament(w http.ResponseWriter, r *http.Request) {
@@ -136,9 +111,7 @@ func (h *TournamentHandler) JoinTournament(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(participant)
+	httputils.RespondJSON(w, http.StatusCreated, participant)
 }
 
 func (h *TournamentHandler) GetParticipants(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +124,5 @@ func (h *TournamentHandler) GetParticipants(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(participants)
+	httputils.RespondJSON(w, http.StatusCreated, participants)
 }

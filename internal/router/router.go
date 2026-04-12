@@ -1,12 +1,10 @@
 package router
 
 import (
-	"back/internal/handler/admin"
+	admin "back/internal/handler/admin"
 	auth "back/internal/handler/auth"
 	"back/internal/handler/health"
 	"back/internal/middleware"
-	"back/internal/repository"
-	"back/internal/service"
 	"back/pkg/jwt"
 	"gorm.io/gorm"
 	"net/http"
@@ -16,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func New(log *zap.Logger, authHandler *auth.AuthHandler, db *gorm.DB, jwtService *jwt.Service) http.Handler {
+func New(log *zap.Logger, authHandler *auth.AuthHandler, db *gorm.DB, jwtService *jwt.Service, tournamentHandler *admin.TournamentHandler, gameHandler *admin.GameHandler) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(cors.Handler(cors.Options{
@@ -27,16 +25,6 @@ func New(log *zap.Logger, authHandler *auth.AuthHandler, db *gorm.DB, jwtService
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
-
-	tournamentRepo := repository.NewTournamentRepository(db)
-	gameRepo := repository.NewGameRepository(db)
-	participantRepo := repository.NewParticipantRepository(db)
-
-	tournamentService := service.NewTournamentService(tournamentRepo, participantRepo)
-	gameService := service.NewGameService(gameRepo)
-
-	tournamentHandler := admin.NewTournamentHandler(log, tournamentService)
-	gameHandler := admin.NewGameHandler(log, gameService)
 
 	r.Route("/api", func(r chi.Router) {
 		// Публичные роуты
@@ -53,7 +41,7 @@ func New(log *zap.Logger, authHandler *auth.AuthHandler, db *gorm.DB, jwtService
 		r.Get("/tournaments", tournamentHandler.GetTournaments)
 		r.Get("/tournaments/{id}", tournamentHandler.GetTournament)
 		r.Get("/games", gameHandler.GetGames)
-		
+
 		// Роуты требующие авторизацию
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(jwtService))

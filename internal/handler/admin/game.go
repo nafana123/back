@@ -1,18 +1,18 @@
 package admin
 
 import (
-	"back/internal/service"
-	"encoding/json"
+	"back/internal/service/game"
+	"back/pkg/httputils"
 	"go.uber.org/zap"
 	"net/http"
 )
 
 type GameHandler struct {
 	Logger      *zap.Logger
-	GameService *service.GameService
+	GameService *game.GameService
 }
 
-func NewGameHandler(logger *zap.Logger, gameService *service.GameService) *GameHandler {
+func NewGameHandler(logger *zap.Logger, gameService *game.GameService) *GameHandler {
 	return &GameHandler{
 		Logger:      logger,
 		GameService: gameService,
@@ -28,7 +28,5 @@ func (h *GameHandler) GetGames(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(games)
+	httputils.RespondJSON(w, http.StatusOK, games)
 }

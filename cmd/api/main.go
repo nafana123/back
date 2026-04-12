@@ -1,6 +1,9 @@
 package main
 
 import (
+	"back/internal/handler/admin"
+	"back/internal/service/game"
+	service2 "back/internal/service/tournament"
 	"back/pkg/jwt"
 	"log"
 	"net/http"
@@ -39,7 +42,17 @@ func main() {
 	authHandler := auth.NewAuthHandler(logg, cfg, userSvc, telegramSvc, steamSvc)
 	jwtService := jwt.NewService(cfg.JWTSecret)
 
-	server := router.New(logg, authHandler, db, jwtService)
+	tournamentRepo := repository.NewTournamentRepository(db)
+	gameRepo := repository.NewGameRepository(db)
+	participantRepo := repository.NewParticipantRepository(db)
+
+	tournamentService := service2.NewTournamentService(tournamentRepo, participantRepo)
+	gameService := game.NewGameService(gameRepo)
+
+	tournamentHandler := admin.NewTournamentHandler(logg, tournamentService)
+	gameHandler := admin.NewGameHandler(logg, gameService)
+
+	server := router.New(logg, authHandler, db, jwtService, tournamentHandler, gameHandler)
 
 	log.Println("Сервер запущен на 127.0.0.1:8080")
 	if err := http.ListenAndServe("0.0.0.0:8080", server); err != nil {

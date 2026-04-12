@@ -82,3 +82,7 @@ func ToResponse(t *model.Tournament) *TournamentResponse {
 		CreatedAt:   t.CreatedAt,
 	}
 }
+
+type StatusUpdateRequest struct {
+	Status string `json:"status"`
+}
