@@ -13,13 +13,6 @@ type TournamentService struct {
 }
 
 func NewTournamentService(tournamentRepo *repository.TournamentRepository, participantRepo *repository.ParticipantRepository) *TournamentService {
-	if tournamentRepo == nil {
-		panic("tournamentRepo cannot be nil")
-	}
-	if participantRepo == nil {
-		panic("participantRepo cannot be nil")
-	}
-
 	return &TournamentService{
 		tournamentRepo:  tournamentRepo,
 		participantRepo: participantRepo,

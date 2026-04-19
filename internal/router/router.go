@@ -6,7 +6,6 @@ import (
 	"back/internal/handler/health"
 	"back/internal/middleware"
 	"back/pkg/jwt"
-	"gorm.io/gorm"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -14,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func New(log *zap.Logger, authHandler *auth.AuthHandler, db *gorm.DB, jwtService *jwt.Service, tournamentHandler *admin.TournamentHandler, gameHandler *admin.GameHandler) http.Handler {
+func New(log *zap.Logger, authHandler *auth.AuthHandler, jwtService *jwt.Service, tournamentHandler *admin.TournamentHandler, gameHandler *admin.GameHandler) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(cors.Handler(cors.Options{
@@ -33,6 +32,7 @@ func New(log *zap.Logger, authHandler *auth.AuthHandler, db *gorm.DB, jwtService
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/telegram", authHandler.TelegramAuth)
 			r.Post("/registration", authHandler.Registration)
+			r.Post("/verify", authHandler.Verify)
 			r.Post("/login", authHandler.Login)
 			r.Get("/steam", authHandler.SteamAuth)
 			r.Get("/steam/callback", authHandler.SteamCallback)

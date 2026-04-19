@@ -1,7 +1,5 @@
 package auth
 
-import "back/internal/model"
-
 type UserData struct {
 	ID           int64  `json:"id"`
 	FirstName    string `json:"first_name"`
@@ -13,5 +11,4 @@ type UserData struct {
 
 type AuthResponse struct {
 	Token string      `json:"token"`
-	User  *model.TgUser `json:"user"`
 }

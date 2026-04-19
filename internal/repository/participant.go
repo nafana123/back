@@ -10,10 +10,6 @@ type ParticipantRepository struct {
 }
 
 func NewParticipantRepository(db *gorm.DB) *ParticipantRepository {
-	if db == nil {
-		panic("db is nil")
-	}
-
 	return &ParticipantRepository{
 		db: db,
 	}

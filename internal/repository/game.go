@@ -10,10 +10,6 @@ type GameRepository struct {
 }
 
 func NewGameRepository(db *gorm.DB) *GameRepository {
-	if db == nil {
-		panic("db is nil")
-	}
-
 	return &GameRepository{
 		db: db,
 	}

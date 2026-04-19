@@ -58,7 +58,6 @@ func (s *telegramService) TelegramAuth(data, botToken, jwtSecret string) (*authd
 
 	return &authdto.AuthResponse{
 		Token: token,
-		User:  user,
 	}, nil
 }
 

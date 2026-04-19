@@ -10,10 +10,6 @@ type GameService struct {
 }
 
 func NewGameService(gameRepo *repository.GameRepository) *GameService {
-	if gameRepo == nil {
-		panic("gameRepo cannot be nil")
-	}
-
 	return &GameService{
 		gameRepo: gameRepo,
 	}

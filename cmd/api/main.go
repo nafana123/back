@@ -1,22 +1,26 @@
 package main
 
 import (
+	"back/internal/cache"
 	"back/internal/handler/admin"
 	"back/internal/service/game"
-	service2 "back/internal/service/tournament"
+	tournamentService "back/internal/service/tournament"
 	"back/pkg/jwt"
 	"log"
 	"net/http"
+	"time"
 
 	"back/internal/config"
 	"back/internal/database"
 	"back/internal/handler/auth"
 	"back/internal/logger"
+	mail "back/internal/mailer"
 	"back/internal/repository"
 	"back/internal/router"
 	steamService "back/internal/service/steam"
 	telegramService "back/internal/service/telegram"
 	userService "back/internal/service/user"
+
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 )
@@ -32,27 +36,27 @@ func main() {
 	cfg := config.LoadConfig()
 	db := database.Connect(logg, cfg)
 
+	store := cache.NewMemoryStore(5 * time.Minute)
+	mailer := mail.NewSMTPMailer(cfg)
+
 	userRepo := repository.NewUserRepository(db)
 	tgUserRepo := repository.NewTgUserRepository(db)
-
-	userSvc := userService.NewUserService(userRepo, cfg.JWTSecret)
-	telegramSvc := telegramService.NewTelegramService(tgUserRepo)
-	steamSvc := steamService.NewSteamService(cfg)
-
-	authHandler := auth.NewAuthHandler(logg, cfg, userSvc, telegramSvc, steamSvc)
-	jwtService := jwt.NewService(cfg.JWTSecret)
-
 	tournamentRepo := repository.NewTournamentRepository(db)
 	gameRepo := repository.NewGameRepository(db)
 	participantRepo := repository.NewParticipantRepository(db)
 
-	tournamentService := service2.NewTournamentService(tournamentRepo, participantRepo)
-	gameService := game.NewGameService(gameRepo)
+	userSvc := userService.NewUserService(userRepo, cfg.JWTSecret, store, mailer)
+	telegramSvc:= telegramService.NewTelegramService(tgUserRepo)
+	steamSvc := steamService.NewSteamService(cfg)
+	tournamentSvc := tournamentService.NewTournamentService(tournamentRepo, participantRepo)
+	gameSvc := game.NewGameService(gameRepo)
+	jwtSvc:= jwt.NewService(cfg.JWTSecret)
 
-	tournamentHandler := admin.NewTournamentHandler(logg, tournamentService)
-	gameHandler := admin.NewGameHandler(logg, gameService)
+	authHandler := auth.NewAuthHandler(logg, cfg, userSvc, telegramSvc, steamSvc)
+	tournamentHandler := admin.NewTournamentHandler(logg, tournamentSvc)
+	gameHandler := admin.NewGameHandler(logg, gameSvc)
 
-	server := router.New(logg, authHandler, db, jwtService, tournamentHandler, gameHandler)
+	server := router.New(logg, authHandler, jwtSvc, tournamentHandler, gameHandler)
 
 	log.Println("Сервер запущен на 127.0.0.1:8080")
 	if err := http.ListenAndServe("0.0.0.0:8080", server); err != nil {

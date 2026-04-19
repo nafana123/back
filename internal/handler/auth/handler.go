@@ -10,6 +10,7 @@ import (
 	"back/internal/validator"
 	"back/pkg/httputils"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -19,7 +20,7 @@ import (
 type AuthHandler struct {
 	logger          *zap.Logger
 	cfg             *config.Config
-	userService     userService.UserService
+	userService     *userService.Service
 	telegramService telegramService.TelegramService
 	steamService    steamService.SteamService
 }
@@ -27,7 +28,7 @@ type AuthHandler struct {
 func NewAuthHandler(
 	logger *zap.Logger,
 	cfg *config.Config,
-	userService userService.UserService,
+	userService *userService.Service,
 	telegramService telegramService.TelegramService,
 	steamService steamService.SteamService,
 ) *AuthHandler {
@@ -48,14 +49,14 @@ func (h *AuthHandler) TelegramAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := h.telegramService.TelegramAuth(data.Data, h.cfg.TelegramBotToken, h.cfg.JWTSecret)
+	token, err := h.telegramService.TelegramAuth(data.Data, h.cfg.TelegramBotToken, h.cfg.JWTSecret)
 	if err != nil {
 		h.logger.Error("Ошибка авторизации пользователя", zap.Error(err))
 		http.Error(w, "Ошибка авторизации пользователя", http.StatusBadRequest)
 		return
 	}
 
-	httputils.RespondJSON(w, http.StatusOK, response)
+	httputils.RespondJSON(w, http.StatusOK, token)
 }
 
 func (h *AuthHandler) SteamAuth(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +96,7 @@ func (h *AuthHandler) Registration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.userService.Register(req.Login, req.Email, req.Password)
+	err = h.userService.Register(req.Login, req.Email, req.Password)
 	if err != nil {
 		switch err {
 		case userService.ErrLoginAlreadyExists:
@@ -107,6 +108,14 @@ func (h *AuthHandler) Registration(w http.ResponseWriter, r *http.Request) {
 			httputils.RespondJSON(w, http.StatusConflict, msgError)
 			return
 		default:
+			if errors.Is(err, userService.ErrEmailDeliveryFailed) {
+				msgError := userdto.ErrorResponse{
+					Error: "Не удалось отправить письмо: такой почты может не существовать или адрес указан с ошибкой",
+					Field: "email",
+				}
+				httputils.RespondJSON(w, http.StatusBadRequest, msgError)
+				return
+			}
 			msgError := userdto.ErrorResponse{Error: "Внутренняя ошибка сервера", Field: "login"}
 			h.logger.Error("Ошибка регистрации пользователя", zap.Error(err))
 			httputils.RespondJSON(w, http.StatusInternalServerError, msgError)
@@ -114,7 +123,36 @@ func (h *AuthHandler) Registration(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httputils.RespondJSON(w, http.StatusCreated, token)
+	httputils.RespondNoContent(w)
+}
+
+func (h *AuthHandler) Verify(w http.ResponseWriter, r *http.Request) {
+	var body userdto.VerifyRequest
+
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		msgError := userdto.ErrorResponse{Error: "Ошибка получения тела запроса"}
+		h.logger.Error("Ошибка получения тела запроса", zap.Error(err))
+		httputils.RespondJSON(w, http.StatusBadRequest, msgError)
+		return
+	}
+
+	token, err := h.userService.CompleteVerification(body)
+	if err != nil {
+		switch err {
+		case userService.ErrInvalidVerificationCode:
+			msgError := userdto.ErrorResponse{Error: "Неверный или просроченный код подтверждения", Field: "code"}
+			httputils.RespondJSON(w, http.StatusConflict, msgError)
+			return
+		default:
+			msgError := userdto.ErrorResponse{Error: "Внутренняя ошибка сервера", Field: "code"}
+			h.logger.Error("Ошибка подтверждения регистрации", zap.Error(err))
+			httputils.RespondJSON(w, http.StatusInternalServerError, msgError)
+			return
+		}
+	}
+
+	httputils.RespondJSON(w, http.StatusCreated, authdto.AuthResponse{Token: token})
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
