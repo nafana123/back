@@ -8,10 +8,8 @@ type RegistrationRequest struct {
 }
 
 type VerifyRequest struct {
-	Login    string `json:"login" binding:"required"`
-	Code     string `json:"code" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	Code  string `json:"code" binding:"required"`
+	Email string `json:"email" binding:"required,email"`
 }
 
 type LoginRequest struct {

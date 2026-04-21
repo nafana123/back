@@ -8,6 +8,7 @@ import (
 	"back/pkg/jwt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"back/internal/config"
@@ -20,6 +21,7 @@ import (
 	steamService "back/internal/service/steam"
 	telegramService "back/internal/service/telegram"
 	userService "back/internal/service/user"
+	googleService "back/internal/service/google"
 
 	"github.com/joho/godotenv"
 	"go.uber.org/zap"
@@ -34,6 +36,10 @@ func main() {
 	defer logg.Sync()
 
 	cfg := config.LoadConfig()
+	if strings.TrimSpace(cfg.JWTSecret) == "" || cfg.JWTSecret == "default-secret-key" {
+		logg.Fatal("JWT_SECRET не задан или небезопасен")
+	}
+
 	db := database.Connect(logg, cfg)
 
 	store := cache.NewMemoryStore(5 * time.Minute)
@@ -51,8 +57,9 @@ func main() {
 	tournamentSvc := tournamentService.NewTournamentService(tournamentRepo, participantRepo)
 	gameSvc := game.NewGameService(gameRepo)
 	jwtSvc:= jwt.NewService(cfg.JWTSecret)
+	googleSvc := googleService.NewGoogleService(cfg, userRepo)
 
-	authHandler := auth.NewAuthHandler(logg, cfg, userSvc, telegramSvc, steamSvc)
+	authHandler := auth.NewAuthHandler(logg, cfg, userSvc, telegramSvc, steamSvc, googleSvc)
 	tournamentHandler := admin.NewTournamentHandler(logg, tournamentSvc)
 	gameHandler := admin.NewGameHandler(logg, gameSvc)
 

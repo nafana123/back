@@ -1,11 +1,14 @@
 package user
 
 import (
+	authdto "back/internal/dto/auth"
 	userdto "back/internal/dto/user"
 	mail "back/internal/mailer"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"back/internal/cache"
@@ -20,6 +23,7 @@ var (
 	ErrLoginAlreadyExists      = errors.New("login already exists")
 	ErrEmailAlreadyExists      = errors.New("email already exists")
 	ErrInvalidCredentials      = errors.New("invalid credentials")
+	ErrGoogleOnlyAuth          = errors.New("google only auth")
 	ErrInvalidVerificationCode = errors.New("invalid verification code")
 	ErrEmailDeliveryFailed     = errors.New("email delivery failed")
 )
@@ -46,6 +50,9 @@ func NewUserService(
 }
 
 func (s *Service) Register(login, email, password string) error {
+	email = strings.TrimSpace(strings.ToLower(email))
+	login = strings.TrimSpace(login)
+
 	existing, err := s.userRepo.GetByLoginOrEmail(login, email)
 	if err != nil {
 		return err
@@ -61,12 +68,25 @@ func (s *Service) Register(login, email, password string) error {
 	}
 
 	code := generateCode()
+	pending := authdto.PendingRegistration{
+		Login:     login,
+		Email:     email,
+		Password:  password,
+		Code:      code,
+		ExpiresAt: time.Now().Add(5 * time.Minute).Unix(),
+	}
+
+	payload, err := json.Marshal(pending)
+	if err != nil {
+		return err
+	}
+
 	subject := "Код подтверждения регистрации"
 	if err := s.mailer.Send(email, subject, code); err != nil {
 		return fmt.Errorf("%w: %v", ErrEmailDeliveryFailed, err)
 	}
 
-	if err := s.store.Set(email, code); err != nil {
+	if err := s.store.Set(pendingRegistrationKey(email), string(payload)); err != nil {
 		return err
 	}
 
@@ -74,19 +94,36 @@ func (s *Service) Register(login, email, password string) error {
 }
 
 func (s *Service) CompleteVerification(body userdto.VerifyRequest) (string, error) {
-	code, err := s.store.Get(body.Email)
-	if err != nil || code != body.Code {
+	email := strings.TrimSpace(strings.ToLower(body.Email))
+	code := strings.TrimSpace(body.Code)
+
+	raw, err := s.store.Get(pendingRegistrationKey(email))
+	if err != nil {
 		return "", ErrInvalidVerificationCode
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	var pending authdto.PendingRegistration
+	if err := json.Unmarshal([]byte(raw), &pending); err != nil {
+		return "", err
+	}
+
+	if pending.Code != code {
+		return "", ErrInvalidVerificationCode
+	}
+
+	if time.Now().Unix() > pending.ExpiresAt {
+		_ = s.store.Delete(pendingRegistrationKey(email))
+		return "", ErrInvalidVerificationCode
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(pending.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
 	}
 
 	user := &model.User{
-		Login:    body.Login,
-		Email:    body.Email,
+		Login:    pending.Login,
+		Email:    pending.Email,
 		Password: string(hash),
 		Role:     "user",
 	}
@@ -95,7 +132,7 @@ func (s *Service) CompleteVerification(body userdto.VerifyRequest) (string, erro
 		return "", err
 	}
 
-	_ = s.store.Delete(body.Email)
+	_ = s.store.Delete(pendingRegistrationKey(email))
 
 	token, err := s.jwtService.GenerateToken(user.ID, user.Role)
 	if err != nil {
@@ -109,6 +146,10 @@ func (s *Service) Login(email, password string) (string, error) {
 	user, err := s.userRepo.GetByEmail(email)
 	if err != nil {
 		return "", ErrInvalidCredentials
+	}
+
+	if user.Password == "" {
+		return "", ErrGoogleOnlyAuth
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
@@ -127,4 +168,8 @@ func (s *Service) Login(email, password string) (string, error) {
 func generateCode() string {
 	rand.Seed(time.Now().UnixNano())
 	return fmt.Sprintf("%06d", rand.Intn(1000000))
+}
+
+func pendingRegistrationKey(email string) string {
+	return "pending_registration:" + email
 }

@@ -4,6 +4,7 @@ import (
 	"back/internal/config"
 	authdto "back/internal/dto/auth"
 	userdto "back/internal/dto/user"
+	googleService "back/internal/service/google"
 	steamService "back/internal/service/steam"
 	telegramService "back/internal/service/telegram"
 	userService "back/internal/service/user"
@@ -13,6 +14,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"go.uber.org/zap"
 )
@@ -23,6 +26,7 @@ type AuthHandler struct {
 	userService     *userService.Service
 	telegramService telegramService.TelegramService
 	steamService    steamService.SteamService
+	googleService   *googleService.GoogleService
 }
 
 func NewAuthHandler(
@@ -31,6 +35,7 @@ func NewAuthHandler(
 	userService *userService.Service,
 	telegramService telegramService.TelegramService,
 	steamService steamService.SteamService,
+	googleService *googleService.GoogleService,
 ) *AuthHandler {
 	return &AuthHandler{
 		logger:          logger,
@@ -38,6 +43,7 @@ func NewAuthHandler(
 		userService:     userService,
 		telegramService: telegramService,
 		steamService:    steamService,
+		googleService:   googleService,
 	}
 }
 
@@ -137,6 +143,14 @@ func (h *AuthHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ok, msg, field := validator.ValidateVerify(&body)
+	if !ok {
+		msgError := userdto.ErrorResponse{Error: msg, Field: field}
+		h.logger.Error("Ошибка при валидации данных", zap.String("field", field))
+		httputils.RespondJSON(w, http.StatusBadRequest, msgError)
+		return
+	}
+
 	token, err := h.userService.CompleteVerification(body)
 	if err != nil {
 		switch err {
@@ -177,6 +191,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	token, err := h.userService.Login(req.Email, req.Password)
 	if err != nil {
 		switch err {
+		case userService.ErrGoogleOnlyAuth:
+			msgError := userdto.ErrorResponse{Error: "Этот аккаунт зарегистрирован через Google. Войдите с помощью Google.",Field: "email",}
+			httputils.RespondJSON(w, http.StatusUnauthorized, msgError)
+			return
 		case userService.ErrInvalidCredentials:
 			msgError := userdto.ErrorResponse{Error: "Неверный логин или пароль", Field: "email"}
 			httputils.RespondJSON(w, http.StatusUnauthorized, msgError)
@@ -190,4 +208,37 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputils.RespondJSON(w, http.StatusCreated, token)
+}
+
+func (h *AuthHandler) GoogleAuth(w http.ResponseWriter, r *http.Request) {
+	state, err := generateOAuthState(h.cfg.JWTSecret)
+	if err != nil {
+		h.logger.Error("Ошибка генерации OAuth state", zap.Error(err))
+		httputils.RespondJSON(w, http.StatusInternalServerError, userdto.ErrorResponse{Error: "Не удалось начать вход через Google"})
+		return
+	}
+
+	redirectURL := h.googleService.GetAuthURL(state)
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
+	code := r.URL.Query().Get("code")
+	state := r.URL.Query().Get("state")
+
+	if err := validateOAuthState(state, h.cfg.JWTSecret); err != nil {
+		httputils.RespondJSON(w, http.StatusUnauthorized, userdto.ErrorResponse{Error: "Невалидный OAuth state",})
+		return
+	}
+
+	response, err := h.googleService.GoogleValidate(r.Context(), code)
+	if err != nil {
+		h.logger.Error("Ошибка при валидации данных", zap.Error(err))
+		httputils.RespondJSON(w, http.StatusInternalServerError, userdto.ErrorResponse{Error: "Не удалось выполнить вход через Google",})
+		return
+	}
+
+	baseFrontendURL := strings.TrimRight(h.cfg.FrontendURL, "/")
+	frontendURL := fmt.Sprintf("%s/#token=%s", baseFrontendURL, url.QueryEscape(response.Token))
+	http.Redirect(w, r, frontendURL, http.StatusFound)
 }

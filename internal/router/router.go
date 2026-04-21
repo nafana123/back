@@ -7,6 +7,7 @@ import (
 	"back/internal/middleware"
 	"back/pkg/jwt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
@@ -30,12 +31,15 @@ func New(log *zap.Logger, authHandler *auth.AuthHandler, jwtService *jwt.Service
 		r.Get("/health", health.HealthHandler)
 
 		r.Route("/auth", func(r chi.Router) {
+			r.With(middleware.AuthRateLimit(10, time.Minute, "Слишком много попыток регистрации. Попробуйте позже.")).Post("/registration", authHandler.Registration)
+			r.With(middleware.AuthRateLimit(3, time.Minute, "Слишком много попыток подтверждения. Попробуйте позже.")).Post("/verify", authHandler.Verify)
+			r.With(middleware.AuthRateLimit(4, time.Minute, "Слишком много попыток входа. Попробуйте позже.")).Post("/login", authHandler.Login)
+
 			r.Post("/telegram", authHandler.TelegramAuth)
-			r.Post("/registration", authHandler.Registration)
-			r.Post("/verify", authHandler.Verify)
-			r.Post("/login", authHandler.Login)
 			r.Get("/steam", authHandler.SteamAuth)
 			r.Get("/steam/callback", authHandler.SteamCallback)
+			r.Get("/google", authHandler.GoogleAuth)
+			r.Get("/google/callback", authHandler.GoogleCallback)
 		})
 
 		r.Get("/tournaments", tournamentHandler.GetTournaments)

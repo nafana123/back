@@ -24,6 +24,7 @@ func Auth(jwtService *jwt.Service) func(http.Handler) http.Handler {
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 {
 				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				return
 			}
 
 			tokenString := parts[1]
