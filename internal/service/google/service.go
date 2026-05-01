@@ -11,7 +11,7 @@ import (
 
 	authdto "back/internal/dto/auth"
 	"back/internal/model"
-	"back/internal/repository"
+	userrepo "back/internal/repository/user"
 	jwtpkg "back/pkg/jwt"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -21,11 +21,11 @@ import (
 type GoogleService struct {
 	cfg         *config.Config
 	oauthConfig *oauth2.Config
-	userRepo    repository.UserRepository
+	userRepo    *userrepo.UserRepository
 	jwtService  *jwtpkg.Service
 }
 
-func NewGoogleService(cfg *config.Config, userRepo repository.UserRepository) *GoogleService {
+func NewGoogleService(cfg *config.Config, userRepo *userrepo.UserRepository) *GoogleService {
 	oauthConfig := &oauth2.Config{
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,

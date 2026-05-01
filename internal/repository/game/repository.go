@@ -1,7 +1,8 @@
-package repository
+package game
 
 import (
 	"back/internal/model"
+
 	"gorm.io/gorm"
 )
 

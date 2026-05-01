@@ -1,7 +1,8 @@
-package repository
+package participant
 
 import (
 	"back/internal/model"
+
 	"gorm.io/gorm"
 )
 

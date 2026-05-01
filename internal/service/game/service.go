@@ -2,14 +2,14 @@ package game
 
 import (
 	"back/internal/model"
-	"back/internal/repository"
+	gamerepo "back/internal/repository/game"
 )
 
 type GameService struct {
-	gameRepo *repository.GameRepository
+	gameRepo *gamerepo.GameRepository
 }
 
-func NewGameService(gameRepo *repository.GameRepository) *GameService {
+func NewGameService(gameRepo *gamerepo.GameRepository) *GameService {
 	return &GameService{
 		gameRepo: gameRepo,
 	}

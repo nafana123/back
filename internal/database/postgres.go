@@ -26,7 +26,7 @@ func Connect(logger *zap.Logger, cfg *config.Config) *gorm.DB {
 	}
 
 	// Автомиграция моделей
-	if err := db.AutoMigrate(&model.User{}, &model.TgUser{}, &model.Game{}, &model.Tournament{}, &model.Participant{}); err != nil {
+	if err := db.AutoMigrate(model.SteamUser{}); err != nil {
 		logger.Fatal("Ошибка миграции", zap.Error(err))
 	}
 

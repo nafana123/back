@@ -1,7 +1,8 @@
-package repository
+package tournament
 
 import (
 	"back/internal/model"
+
 	"gorm.io/gorm"
 )
 
@@ -28,15 +29,15 @@ func (r *TournamentRepository) GetALl() ([]model.Tournament, error) {
 }
 
 func (r *TournamentRepository) GetById(id string) (*model.Tournament, error) {
-	var tournament model.Tournament
+	var t model.Tournament
 
-	result := r.db.First(&tournament, id)
+	result := r.db.First(&t, id)
 
 	if result.Error != nil {
 		return nil, result.Error
 	}
 
-	return &tournament, nil
+	return &t, nil
 }
 
 func (r *TournamentRepository) CreateTournament(tournament *model.Tournament) error {
