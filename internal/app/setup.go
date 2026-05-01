@@ -5,7 +5,10 @@ import (
 	"back/internal/config"
 	"back/internal/database"
 	adminHandler "back/internal/handler/admin"
-	authHandler "back/internal/handler/auth"
+	credentialsHandler "back/internal/handler/auth/credentials"
+	googleHandler "back/internal/handler/auth/google"
+	steamHandler "back/internal/handler/auth/steam"
+	telegramHandler "back/internal/handler/auth/telegram"
 	gameHandler "back/internal/handler/game"
 	mail "back/internal/mailer"
 	gamerepo "back/internal/repository/game"
@@ -49,9 +52,12 @@ type services struct {
 }
 
 type handlers struct {
-	auth       *authHandler.AuthHandler
-	tournament *adminHandler.TournamentHandler
-	game       *gameHandler.Handler
+	credentials *credentialsHandler.Handler
+	google      *googleHandler.Handler
+	steam       *steamHandler.Handler
+	telegram    *telegramHandler.Handler
+	tournament  *adminHandler.TournamentHandler
+	game        *gameHandler.Handler
 }
 
 func BuildServer(log *zap.Logger, cfg *config.Config) http.Handler {
@@ -64,7 +70,10 @@ func BuildServer(log *zap.Logger, cfg *config.Config) http.Handler {
 	handlers := initHandlers(services, log, cfg)
 
 	return router.New(router.RoutesDeps{
-		AuthHandler:       handlers.auth,
+		CredentialsHandler: handlers.credentials,
+		GoogleHandler:      handlers.google,
+		SteamHandler:       handlers.steam,
+		TelegramHandler:    handlers.telegram,
 		JWTService:        services.jwt,
 		TournamentHandler: handlers.tournament,
 		GameHandler:       handlers.game,
@@ -96,8 +105,11 @@ func initServices(repositories repositories, cfg *config.Config, store *cache.Me
 
 func initHandlers(services services, log *zap.Logger, cfg *config.Config) handlers {
 	return handlers{
-		auth:       authHandler.NewAuthHandler(log, cfg, services.user, services.telegram, services.steam, services.google),
-		tournament: adminHandler.NewTournamentHandler(log, services.tournament),
-		game:       gameHandler.NewHandler(log, services.game),
+		credentials: credentialsHandler.NewHandler(log, services.user),
+		google:      googleHandler.NewHandler(log, cfg, services.google),
+		steam:       steamHandler.NewHandler(log, cfg, services.steam),
+		telegram:    telegramHandler.NewHandler(log, cfg, services.telegram),
+		tournament:  adminHandler.NewTournamentHandler(log, services.tournament),
+		game:        gameHandler.NewHandler(log, services.game),
 	}
 }
