@@ -1,4 +1,4 @@
-package dto
+package tournament
 
 import (
 	"back/internal/model"
@@ -44,6 +44,15 @@ type MinifiedTournamentResponse struct {
 	TournamentBase
 }
 
+type StatusUpdateRequest struct {
+	Status string `json:"status"`
+}
+
+type JoinTournamentRequest struct {
+	TournamentID string `json:"tournament_id"`
+	UserID       int    `json:"user_id"`
+}
+
 func (req *CreateTournamentRequest) ToModel() *model.Tournament {
 	return &model.Tournament{
 		Title:          req.Title,
@@ -59,6 +68,13 @@ func (req *CreateTournamentRequest) ToModel() *model.Tournament {
 		CurrentPlayers: 0,
 		Status:         "registration",
 		CreatedAt:      time.Now(),
+	}
+}
+
+func (req *JoinTournamentRequest) ToModel() *model.Participant {
+	return &model.Participant{
+		TournamentID: req.TournamentID,
+		UserID:       req.UserID,
 	}
 }
 
@@ -81,8 +97,4 @@ func ToResponse(t *model.Tournament) *TournamentResponse {
 		Rules:       t.Rules,
 		CreatedAt:   t.CreatedAt,
 	}
-}
-
-type StatusUpdateRequest struct {
-	Status string `json:"status"`
 }

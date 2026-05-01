@@ -3,6 +3,7 @@ package router
 import (
 	admin "back/internal/handler/admin"
 	auth "back/internal/handler/auth"
+	game "back/internal/handler/game"
 	"back/internal/handler/health"
 	"back/internal/middleware"
 	"back/pkg/jwt"
@@ -11,10 +12,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"go.uber.org/zap"
 )
 
-func New(log *zap.Logger, authHandler *auth.AuthHandler, jwtService *jwt.Service, tournamentHandler *admin.TournamentHandler, gameHandler *admin.GameHandler) http.Handler {
+type RoutesDeps struct {
+	AuthHandler       *auth.AuthHandler
+	JWTService        *jwt.Service
+	TournamentHandler *admin.TournamentHandler
+	GameHandler       *game.Handler
+}
+
+func New(deps RoutesDeps) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(cors.Handler(cors.Options{
@@ -27,38 +34,47 @@ func New(log *zap.Logger, authHandler *auth.AuthHandler, jwtService *jwt.Service
 	}))
 
 	r.Route("/api", func(r chi.Router) {
-		// Публичные роуты
 		r.Get("/health", health.HealthHandler)
-
-		r.Route("/auth", func(r chi.Router) {
-			r.With(middleware.AuthRateLimit(10, time.Minute, "Слишком много попыток регистрации. Попробуйте позже.")).Post("/registration", authHandler.Registration)
-			r.With(middleware.AuthRateLimit(3, time.Minute, "Слишком много попыток подтверждения. Попробуйте позже.")).Post("/verify", authHandler.Verify)
-			r.With(middleware.AuthRateLimit(4, time.Minute, "Слишком много попыток входа. Попробуйте позже.")).Post("/login", authHandler.Login)
-
-			r.Post("/telegram", authHandler.TelegramAuth)
-			r.Get("/steam", authHandler.SteamAuth)
-			r.Get("/steam/callback", authHandler.SteamCallback)
-			r.Get("/google", authHandler.GoogleAuth)
-			r.Get("/google/callback", authHandler.GoogleCallback)
-		})
-
-		r.Get("/tournaments", tournamentHandler.GetTournaments)
-		r.Get("/tournaments/{id}", tournamentHandler.GetTournament)
-		r.Get("/games", gameHandler.GetGames)
-
-		// Роуты требующие авторизацию
-		r.Group(func(r chi.Router) {
-			r.Use(middleware.Auth(jwtService))
-
-			r.Post("/tournaments/{id}/join", tournamentHandler.JoinTournament)
-			r.Get("/tournaments/{id}/participants", tournamentHandler.GetParticipants)
-
-			r.Route("/admin", func(r chi.Router) {
-				r.Post("/tournaments", tournamentHandler.CreateTournament)
-				r.Patch("/tournaments/{id}/status", tournamentHandler.ChangeTournamentStatus)
-			})
-		})
+		RegisterAuthRoutes(r, deps.AuthHandler, deps.JWTService)
+		RegisterTournamentRoutes(r, deps.TournamentHandler, deps.JWTService)
+		RegisterGameRoutes(r, deps.GameHandler)
 	})
 
 	return r
+}
+
+func RegisterAuthRoutes(r chi.Router, h *auth.AuthHandler, jwtService *jwt.Service) {
+	r.Route("/auth", func(r chi.Router) {
+		r.With(middleware.AuthRateLimit(10, time.Minute, "Слишком много попыток регистрации. Попробуйте позже.")).Post("/registration", h.Registration)
+		r.With(middleware.AuthRateLimit(3, time.Minute, "Слишком много попыток подтверждения. Попробуйте позже.")).Post("/verify", h.Verify)
+		r.With(middleware.AuthRateLimit(4, time.Minute, "Слишком много попыток входа. Попробуйте позже.")).Post("/login", h.Login)
+
+		r.Post("/telegram", h.TelegramAuth)
+		r.Get("/google", h.GoogleAuth)
+		r.Get("/google/callback", h.GoogleCallback)
+		r.Get("/steam/callback", h.SteamCallback)
+	})
+
+	r.With(middleware.Auth(jwtService)).Get("/auth/steam", h.SteamAuth)
+}
+
+func RegisterTournamentRoutes(r chi.Router, h *admin.TournamentHandler, jwtService *jwt.Service) {
+	r.Get("/tournaments", h.GetTournaments)
+	r.Get("/tournaments/{id}", h.GetTournament)
+
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(jwtService))
+
+		r.Post("/tournaments/{id}/join", h.JoinTournament)
+		r.Get("/tournaments/{id}/participants", h.GetParticipants)
+
+		r.Route("/admin", func(r chi.Router) {
+			r.Post("/tournaments", h.CreateTournament)
+			r.Patch("/tournaments/{id}/status", h.ChangeTournamentStatus)
+		})
+	})
+}
+
+func RegisterGameRoutes(r chi.Router, h *game.Handler) {
+	r.Get("/games", h.GetGames)
 }

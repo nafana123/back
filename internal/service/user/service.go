@@ -13,7 +13,7 @@ import (
 
 	"back/internal/cache"
 	"back/internal/model"
-	"back/internal/repository"
+	userrepo "back/internal/repository/user"
 	jwtpkg "back/pkg/jwt"
 
 	"golang.org/x/crypto/bcrypt"
@@ -29,14 +29,14 @@ var (
 )
 
 type Service struct {
-	userRepo   repository.UserRepository
+	userRepo   *userrepo.UserRepository
 	jwtService *jwtpkg.Service
 	store      *cache.MemoryStore
 	mailer     *mail.SMTPMailer
 }
 
 func NewUserService(
-	userRepo repository.UserRepository,
+	userRepo *userrepo.UserRepository,
 	jwtSecret string,
 	store *cache.MemoryStore,
 	mailer *mail.SMTPMailer,

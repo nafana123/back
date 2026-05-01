@@ -1,14 +1,15 @@
 package admin
 
 import (
-	"back/internal/dto"
+	tournamentdto "back/internal/dto/tournament"
 	"back/internal/middleware"
 	"back/internal/service/tournament"
 	"back/pkg/httputils"
 	"encoding/json"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 type TournamentHandler struct {
@@ -23,12 +24,17 @@ func NewTournamentHandler(logger *zap.Logger, tournamentService *tournament.Tour
 	}
 }
 
+func (h *TournamentHandler) respondDecodeError(w http.ResponseWriter, err error) {
+	h.logger.Error("Ошибка декодирования тела запроса", zap.Error(err))
+	httputils.RespondDecodeError(w)
+}
+
 func (h *TournamentHandler) GetTournaments(w http.ResponseWriter, r *http.Request) {
 	tournaments, err := h.tournamentService.GetAllTournaments()
 
 	if err != nil {
-		h.logger.Error("Failed to get tournaments", zap.Error(err))
-
+		h.logger.Error("Ошибка получения турниров", zap.Error(err))
+		httputils.RespondError(w, http.StatusInternalServerError, "Не удалось получить турниры")
 		return
 	}
 
@@ -41,8 +47,8 @@ func (h *TournamentHandler) GetTournament(w http.ResponseWriter, r *http.Request
 	tournament, err := h.tournamentService.GetTournament(tournamentID)
 
 	if err != nil {
-		h.logger.Error("Failed to get tournament", zap.Error(err))
-
+		h.logger.Error("Ошибка получения турнира", zap.Error(err), zap.String("tournament_id", tournamentID))
+		httputils.RespondError(w, http.StatusInternalServerError, "Не удалось получить турнир")
 		return
 	}
 
@@ -50,40 +56,40 @@ func (h *TournamentHandler) GetTournament(w http.ResponseWriter, r *http.Request
 }
 
 func (h *TournamentHandler) CreateTournament(w http.ResponseWriter, r *http.Request) {
-	var body dto.CreateTournamentRequest
-	err := json.NewDecoder(r.Body).Decode(&body)
+	var req tournamentdto.CreateTournamentRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		h.logger.Error("Failed to decode request", zap.Error(err))
-		http.Error(w, "Failed to decode request", http.StatusBadRequest)
+		h.respondDecodeError(w, err)
 		return
 	}
 
-	tournament, err := h.tournamentService.CreateTournament(&body)
+	tournament, err := h.tournamentService.CreateTournament(&req)
 
 	if err != nil {
-		h.logger.Error("Failed to create tournament", zap.Error(err))
+		h.logger.Error("Ошибка создания турнира", zap.Error(err))
+		httputils.RespondError(w, http.StatusInternalServerError, "Не удалось создать турнир")
 		return
 	}
 
-	response := dto.ToResponse(tournament)
+	response := tournamentdto.ToResponse(tournament)
 
 	httputils.RespondJSON(w, http.StatusCreated, response)
 }
 
 func (h *TournamentHandler) ChangeTournamentStatus(w http.ResponseWriter, r *http.Request) {
-	tournamentId := chi.URLParam(r, "id")
+	tournamentID := chi.URLParam(r, "id")
 
-	var body dto.StatusUpdateRequest
+	var req tournamentdto.StatusUpdateRequest
 
-	err := json.NewDecoder(r.Body).Decode(&body)
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		h.logger.Error("Failed to decode request", zap.Error(err))
-		http.Error(w, "Failed to decode request", http.StatusBadRequest)
+		h.respondDecodeError(w, err)
 		return
 	}
 
-	if err := h.tournamentService.ChangeStatus(tournamentId, body.Status); err != nil {
-		http.Error(w, "Failed to change tournament status", http.StatusInternalServerError)
+	if err := h.tournamentService.ChangeStatus(tournamentID, req.Status); err != nil {
+		h.logger.Error("Ошибка изменения статуса турнира", zap.Error(err), zap.String("tournament_id", tournamentID))
+		httputils.RespondError(w, http.StatusInternalServerError, "Не удалось изменить статус турнира")
 		return
 	}
 
@@ -91,23 +97,23 @@ func (h *TournamentHandler) ChangeTournamentStatus(w http.ResponseWriter, r *htt
 }
 
 func (h *TournamentHandler) JoinTournament(w http.ResponseWriter, r *http.Request) {
-	tournamentId := chi.URLParam(r, "id")
-	userId, ok := middleware.GetUserID(r.Context())
+	tournamentID := chi.URLParam(r, "id")
+	userID, ok := middleware.GetUserID(r.Context())
 
 	if !ok {
-		http.Error(w, `{"error" : "Unauthorized"}`, http.StatusUnauthorized)
+		httputils.RespondError(w, http.StatusUnauthorized, "Требуется авторизация")
 		return
 	}
 
-	req := &dto.JoinTournamentRequest{
-		TournamentID: tournamentId,
-		UserID:       userId,
+	req := &tournamentdto.JoinTournamentRequest{
+		TournamentID: tournamentID,
+		UserID:       userID,
 	}
 
 	participant, err := h.tournamentService.JoinTournament(req)
 	if err != nil {
-		h.logger.Error("Failed to join tournament", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.logger.Error("Ошибка присоединения к турниру", zap.Error(err), zap.String("tournament_id", tournamentID), zap.Int("user_id", userID))
+		httputils.RespondError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -115,14 +121,14 @@ func (h *TournamentHandler) JoinTournament(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *TournamentHandler) GetParticipants(w http.ResponseWriter, r *http.Request) {
-	tournamentId := chi.URLParam(r, "id")
+	tournamentID := chi.URLParam(r, "id")
 
-	participants, err := h.tournamentService.GetParticipantsByTournament(tournamentId)
+	participants, err := h.tournamentService.GetParticipantsByTournament(tournamentID)
 	if err != nil {
-		h.logger.Error("Failed to get participants", zap.Error(err))
-		http.Error(w, "Failed to get participants", http.StatusInternalServerError)
+		h.logger.Error("Ошибка получения участников турнира", zap.Error(err), zap.String("tournament_id", tournamentID))
+		httputils.RespondError(w, http.StatusInternalServerError, "Не удалось получить участников турнира")
 		return
 	}
 
-	httputils.RespondJSON(w, http.StatusCreated, participants)
+	httputils.RespondJSON(w, http.StatusOK, participants)
 }

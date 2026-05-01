@@ -3,7 +3,10 @@ package auth
 import (
 	"back/internal/config"
 	authdto "back/internal/dto/auth"
+	steamdto "back/internal/dto/steam"
 	userdto "back/internal/dto/user"
+	middleware "back/internal/middleware"
+	oauthstate "back/internal/oauthstate"
 	googleService "back/internal/service/google"
 	steamService "back/internal/service/steam"
 	telegramService "back/internal/service/telegram"
@@ -24,8 +27,8 @@ type AuthHandler struct {
 	logger          *zap.Logger
 	cfg             *config.Config
 	userService     *userService.Service
-	telegramService telegramService.TelegramService
-	steamService    steamService.SteamService
+	telegramService *telegramService.Service
+	steamService    *steamService.SteamService
 	googleService   *googleService.GoogleService
 }
 
@@ -33,8 +36,8 @@ func NewAuthHandler(
 	logger *zap.Logger,
 	cfg *config.Config,
 	userService *userService.Service,
-	telegramService telegramService.TelegramService,
-	steamService steamService.SteamService,
+	telegramService *telegramService.Service,
+	steamService *steamService.SteamService,
 	googleService *googleService.GoogleService,
 ) *AuthHandler {
 	return &AuthHandler{
@@ -48,17 +51,17 @@ func NewAuthHandler(
 }
 
 func (h *AuthHandler) TelegramAuth(w http.ResponseWriter, r *http.Request) {
-	var data authdto.DataRequest
-	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-		h.logger.Error("Ошибка декодирования", zap.Error(err))
-		http.Error(w, "Ошибка декодирования", http.StatusBadRequest)
+	var req authdto.DataRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.logger.Error("Ошибка декодирования тела запроса", zap.Error(err))
+		httputils.RespondDecodeError(w)
 		return
 	}
 
-	token, err := h.telegramService.TelegramAuth(data.Data, h.cfg.TelegramBotToken, h.cfg.JWTSecret)
+	token, err := h.telegramService.ValidateAuth(req.Data, h.cfg.TelegramBotToken, h.cfg.JWTSecret)
 	if err != nil {
 		h.logger.Error("Ошибка авторизации пользователя", zap.Error(err))
-		http.Error(w, "Ошибка авторизации пользователя", http.StatusBadRequest)
+		httputils.RespondError(w, http.StatusBadRequest, "Ошибка авторизации пользователя")
 		return
 	}
 
@@ -66,21 +69,41 @@ func (h *AuthHandler) TelegramAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) SteamAuth(w http.ResponseWriter, r *http.Request) {
-	redirectURL := h.steamService.GetAuthURL()
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	userID, ok := middleware.GetUserID(r.Context())
+	if !ok {
+		httputils.RespondError(w, http.StatusUnauthorized, "Требуется авторизация")
+		return
+	}
+
+	state, err := oauthstate.GenerateWithUserID(h.cfg.JWTSecret, userID)
+	if err != nil {
+		h.logger.Error("Ошибка генерации Steam state", zap.Error(err))
+		httputils.RespondError(w, http.StatusInternalServerError, "Не удалось начать вход через Steam")
+		return
+	}
+
+	redirectURL := h.steamService.GetAuthURL(state)
+	httputils.RespondJSON(w, http.StatusOK, steamdto.SteamRedirectResponse{RedirectURL: redirectURL})
 }
 
 func (h *AuthHandler) SteamCallback(w http.ResponseWriter, r *http.Request) {
 	queryParams := r.URL.Query()
-	response, err := h.steamService.ValidateAndGetProfile(queryParams)
 
+	state := queryParams.Get("state")
+	userID, err := oauthstate.ValidateWithUserID(state, h.cfg.JWTSecret)
 	if err != nil {
-		h.logger.Error("Ошибка валидации Steam ответа", zap.Error(err))
-		http.Error(w, "Validation failed", http.StatusInternalServerError)
+		httputils.RespondError(w, http.StatusUnauthorized, "Невалидный Steam state")
 		return
 	}
-	frontendURL := fmt.Sprintf("%s/auth/steam/callback?profile=%s", h.cfg.FrontendURL, response)
-	http.Redirect(w, r, frontendURL, http.StatusFound)
+
+	err = h.steamService.ValidateCallback(queryParams, userID)
+	if err != nil {
+		h.logger.Error("Ошибка валидации Steam ответа", zap.Error(err))
+		httputils.RespondError(w, http.StatusInternalServerError, "Ошибка валидации ответа Steam")
+		return
+	}
+
+	http.Redirect(w, r, h.cfg.FrontendURL, http.StatusFound)
 }
 
 func (h *AuthHandler) Registration(w http.ResponseWriter, r *http.Request) {
@@ -88,17 +111,15 @@ func (h *AuthHandler) Registration(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		msgError := userdto.ErrorResponse{Error: "Ошибка получения тела запроса"}
-		h.logger.Error("Ошибка получения тела запроса", zap.Error(err))
-		httputils.RespondJSON(w, http.StatusBadRequest, msgError)
+		h.logger.Error("Ошибка декодирования тела запроса", zap.Error(err))
+		httputils.RespondDecodeError(w)
 		return
 	}
 
 	ok, msg, field := validator.ValidateRegistration(&req)
 	if !ok {
-		msgError := userdto.ErrorResponse{Error: msg, Field: field}
 		h.logger.Error("Ошибка при валидации данных")
-		httputils.RespondJSON(w, http.StatusBadRequest, msgError)
+		httputils.RespondErrorWithField(w, http.StatusBadRequest, msg, field)
 		return
 	}
 
@@ -106,25 +127,18 @@ func (h *AuthHandler) Registration(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case userService.ErrLoginAlreadyExists:
-			msgError := userdto.ErrorResponse{Error: "Логин уже занят", Field: "login"}
-			httputils.RespondJSON(w, http.StatusConflict, msgError)
+			httputils.RespondErrorWithField(w, http.StatusConflict, "Логин уже занят", "login")
 			return
 		case userService.ErrEmailAlreadyExists:
-			msgError := userdto.ErrorResponse{Error: "Email уже зарегистрирован", Field: "email"}
-			httputils.RespondJSON(w, http.StatusConflict, msgError)
+			httputils.RespondErrorWithField(w, http.StatusConflict, "Email уже зарегистрирован", "email")
 			return
 		default:
 			if errors.Is(err, userService.ErrEmailDeliveryFailed) {
-				msgError := userdto.ErrorResponse{
-					Error: "Не удалось отправить письмо: такой почты может не существовать или адрес указан с ошибкой",
-					Field: "email",
-				}
-				httputils.RespondJSON(w, http.StatusBadRequest, msgError)
+				httputils.RespondErrorWithField(w, http.StatusBadRequest, "Не удалось отправить письмо: такой почты может не существовать или адрес указан с ошибкой", "email")
 				return
 			}
-			msgError := userdto.ErrorResponse{Error: "Внутренняя ошибка сервера", Field: "login"}
 			h.logger.Error("Ошибка регистрации пользователя", zap.Error(err))
-			httputils.RespondJSON(w, http.StatusInternalServerError, msgError)
+			httputils.RespondErrorWithField(w, http.StatusInternalServerError, "Внутренняя ошибка сервера", "login")
 			return
 		}
 	}
@@ -133,35 +147,31 @@ func (h *AuthHandler) Registration(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Verify(w http.ResponseWriter, r *http.Request) {
-	var body userdto.VerifyRequest
+	var req userdto.VerifyRequest
 
-	err := json.NewDecoder(r.Body).Decode(&body)
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		msgError := userdto.ErrorResponse{Error: "Ошибка получения тела запроса"}
-		h.logger.Error("Ошибка получения тела запроса", zap.Error(err))
-		httputils.RespondJSON(w, http.StatusBadRequest, msgError)
+		h.logger.Error("Ошибка декодирования тела запроса", zap.Error(err))
+		httputils.RespondDecodeError(w)
 		return
 	}
 
-	ok, msg, field := validator.ValidateVerify(&body)
+	ok, msg, field := validator.ValidateVerify(&req)
 	if !ok {
-		msgError := userdto.ErrorResponse{Error: msg, Field: field}
 		h.logger.Error("Ошибка при валидации данных", zap.String("field", field))
-		httputils.RespondJSON(w, http.StatusBadRequest, msgError)
+		httputils.RespondErrorWithField(w, http.StatusBadRequest, msg, field)
 		return
 	}
 
-	token, err := h.userService.CompleteVerification(body)
+	token, err := h.userService.CompleteVerification(req)
 	if err != nil {
 		switch err {
 		case userService.ErrInvalidVerificationCode:
-			msgError := userdto.ErrorResponse{Error: "Неверный или просроченный код подтверждения", Field: "code"}
-			httputils.RespondJSON(w, http.StatusConflict, msgError)
+			httputils.RespondErrorWithField(w, http.StatusConflict, "Неверный или просроченный код подтверждения", "code")
 			return
 		default:
-			msgError := userdto.ErrorResponse{Error: "Внутренняя ошибка сервера", Field: "code"}
 			h.logger.Error("Ошибка подтверждения регистрации", zap.Error(err))
-			httputils.RespondJSON(w, http.StatusInternalServerError, msgError)
+			httputils.RespondErrorWithField(w, http.StatusInternalServerError, "Внутренняя ошибка сервера", "code")
 			return
 		}
 	}
@@ -174,17 +184,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		msgError := userdto.ErrorResponse{Error: "Ошибка получения тела запроса"}
-		h.logger.Error("Ошибка получения тела запроса", zap.Error(err))
-		httputils.RespondJSON(w, http.StatusBadRequest, msgError)
+		h.logger.Error("Ошибка декодирования тела запроса", zap.Error(err))
+		httputils.RespondDecodeError(w)
 		return
 	}
 
 	ok, msg, field := validator.ValidateLogin(&req)
 	if !ok {
-		msgError := userdto.ErrorResponse{Error: msg, Field: field}
 		h.logger.Error("Ошибка при валидации данных", zap.String("field", field))
-		httputils.RespondJSON(w, http.StatusBadRequest, msgError)
+		httputils.RespondErrorWithField(w, http.StatusBadRequest, msg, field)
 		return
 	}
 
@@ -192,17 +200,14 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case userService.ErrGoogleOnlyAuth:
-			msgError := userdto.ErrorResponse{Error: "Этот аккаунт зарегистрирован через Google. Войдите с помощью Google.",Field: "email",}
-			httputils.RespondJSON(w, http.StatusUnauthorized, msgError)
+			httputils.RespondErrorWithField(w, http.StatusUnauthorized, "Этот аккаунт зарегистрирован через Google. Войдите с помощью Google.", "email")
 			return
 		case userService.ErrInvalidCredentials:
-			msgError := userdto.ErrorResponse{Error: "Неверный логин или пароль", Field: "email"}
-			httputils.RespondJSON(w, http.StatusUnauthorized, msgError)
+			httputils.RespondErrorWithField(w, http.StatusUnauthorized, "Неверный логин или пароль", "email")
 			return
 		default:
-			msgError := userdto.ErrorResponse{Error: "Внутренняя ошибка сервера"}
 			h.logger.Error("Ошибка авторизации пользователя", zap.Error(err))
-			httputils.RespondJSON(w, http.StatusInternalServerError, msgError)
+			httputils.RespondError(w, http.StatusInternalServerError, "Внутренняя ошибка сервера")
 			return
 		}
 	}
@@ -211,10 +216,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) GoogleAuth(w http.ResponseWriter, r *http.Request) {
-	state, err := generateOAuthState(h.cfg.JWTSecret)
+	state, err := oauthstate.Generate(h.cfg.JWTSecret)
 	if err != nil {
 		h.logger.Error("Ошибка генерации OAuth state", zap.Error(err))
-		httputils.RespondJSON(w, http.StatusInternalServerError, userdto.ErrorResponse{Error: "Не удалось начать вход через Google"})
+		httputils.RespondError(w, http.StatusInternalServerError, "Не удалось начать вход через Google")
 		return
 	}
 
@@ -226,15 +231,15 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 
-	if err := validateOAuthState(state, h.cfg.JWTSecret); err != nil {
-		httputils.RespondJSON(w, http.StatusUnauthorized, userdto.ErrorResponse{Error: "Невалидный OAuth state",})
+	if err := oauthstate.Validate(state, h.cfg.JWTSecret); err != nil {
+		httputils.RespondError(w, http.StatusUnauthorized, "Невалидный OAuth state")
 		return
 	}
 
 	response, err := h.googleService.GoogleValidate(r.Context(), code)
 	if err != nil {
 		h.logger.Error("Ошибка при валидации данных", zap.Error(err))
-		httputils.RespondJSON(w, http.StatusInternalServerError, userdto.ErrorResponse{Error: "Не удалось выполнить вход через Google",})
+		httputils.RespondError(w, http.StatusInternalServerError, "Не удалось выполнить вход через Google")
 		return
 	}
 

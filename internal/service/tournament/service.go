@@ -1,18 +1,19 @@
 package tournament
 
 import (
-	"back/internal/dto"
+	tournamentdto "back/internal/dto/tournament"
 	"back/internal/model"
-	"back/internal/repository"
+	participantrepo "back/internal/repository/participant"
+	tournamentrepo "back/internal/repository/tournament"
 	"fmt"
 )
 
 type TournamentService struct {
-	tournamentRepo  *repository.TournamentRepository
-	participantRepo *repository.ParticipantRepository
+	tournamentRepo  *tournamentrepo.TournamentRepository
+	participantRepo *participantrepo.ParticipantRepository
 }
 
-func NewTournamentService(tournamentRepo *repository.TournamentRepository, participantRepo *repository.ParticipantRepository) *TournamentService {
+func NewTournamentService(tournamentRepo *tournamentrepo.TournamentRepository, participantRepo *participantrepo.ParticipantRepository) *TournamentService {
 	return &TournamentService{
 		tournamentRepo:  tournamentRepo,
 		participantRepo: participantRepo,
@@ -27,7 +28,7 @@ func (s *TournamentService) GetTournament(id string) (*model.Tournament, error) 
 	return s.tournamentRepo.GetById(id)
 }
 
-func (s *TournamentService) CreateTournament(data *dto.CreateTournamentRequest) (*model.Tournament, error) {
+func (s *TournamentService) CreateTournament(data *tournamentdto.CreateTournamentRequest) (*model.Tournament, error) {
 	tournament := data.ToModel()
 
 	if err := s.tournamentRepo.CreateTournament(tournament); err != nil {
@@ -61,7 +62,7 @@ func (s *TournamentService) ChangeStatus(id, status string) error {
 	return nil
 }
 
-func (s *TournamentService) JoinTournament(data *dto.JoinTournamentRequest) (*model.Participant, error) {
+func (s *TournamentService) JoinTournament(data *tournamentdto.JoinTournamentRequest) (*model.Participant, error) {
 	tournament, err := s.tournamentRepo.GetById(data.TournamentID)
 	if err != nil {
 		return nil, err
