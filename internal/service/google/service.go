@@ -103,13 +103,13 @@ func (s *GoogleService) GoogleValidate(ctx context.Context, code string) (*authd
 			Email:    user.Email,
 			Password: "",
 			PhotoURL: user.Picture,
-			Role:     "user",
+			Role:     model.RoleUser,
 		}
 
 		if err := s.userRepo.CreateUser(dbUser); err != nil {
 			return nil, err
 		}
-	} 
+	}
 
 	jwtToken, err := s.jwtService.GenerateToken(dbUser.ID, dbUser.Role)
 	if err != nil {

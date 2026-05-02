@@ -10,6 +10,7 @@ import (
 	steamHandler "back/internal/handler/auth/steam"
 	telegramHandler "back/internal/handler/auth/telegram"
 	gameHandler "back/internal/handler/game"
+	tournamentHandler "back/internal/handler/tournament"
 	mail "back/internal/mailer"
 	gamerepo "back/internal/repository/game"
 	participantrepo "back/internal/repository/participant"
@@ -52,12 +53,13 @@ type services struct {
 }
 
 type handlers struct {
-	credentials *credentialsHandler.Handler
-	google      *googleHandler.Handler
-	steam       *steamHandler.Handler
-	telegram    *telegramHandler.Handler
-	tournament  *adminHandler.TournamentHandler
-	game        *gameHandler.Handler
+	credentials     *credentialsHandler.Handler
+	google          *googleHandler.Handler
+	steam           *steamHandler.Handler
+	telegram        *telegramHandler.Handler
+	tournament      *tournamentHandler.Handler
+	admin           *adminHandler.Handler
+	game            *gameHandler.Handler
 }
 
 func BuildServer(log *zap.Logger, cfg *config.Config) http.Handler {
@@ -70,13 +72,14 @@ func BuildServer(log *zap.Logger, cfg *config.Config) http.Handler {
 	handlers := initHandlers(services, log, cfg)
 
 	return router.New(router.RoutesDeps{
-		CredentialsHandler: handlers.credentials,
-		GoogleHandler:      handlers.google,
-		SteamHandler:       handlers.steam,
-		TelegramHandler:    handlers.telegram,
-		JWTService:        services.jwt,
-		TournamentHandler: handlers.tournament,
-		GameHandler:       handlers.game,
+		CredentialsHandler:     handlers.credentials,
+		GoogleHandler:          handlers.google,
+		SteamHandler:           handlers.steam,
+		TelegramHandler:        handlers.telegram,
+		JWTService:             services.jwt,
+		TournamentHandler:      handlers.tournament,
+		AdminHandler:           handlers.admin,
+		GameHandler:            handlers.game,
 	})
 }
 
@@ -105,11 +108,12 @@ func initServices(repositories repositories, cfg *config.Config, store *cache.Me
 
 func initHandlers(services services, log *zap.Logger, cfg *config.Config) handlers {
 	return handlers{
-		credentials: credentialsHandler.NewHandler(log, services.user),
-		google:      googleHandler.NewHandler(log, cfg, services.google),
-		steam:       steamHandler.NewHandler(log, cfg, services.steam),
-		telegram:    telegramHandler.NewHandler(log, cfg, services.telegram),
-		tournament:  adminHandler.NewTournamentHandler(log, services.tournament),
-		game:        gameHandler.NewHandler(log, services.game),
+		credentials:     credentialsHandler.NewHandler(log, services.user),
+		google:          googleHandler.NewHandler(log, cfg, services.google),
+		steam:           steamHandler.NewHandler(log, cfg, services.steam),
+		telegram:        telegramHandler.NewHandler(log, cfg, services.telegram),
+		tournament:      tournamentHandler.NewHandler(log, services.tournament),
+		admin:           adminHandler.NewHandler(log, services.tournament),
+		game:            gameHandler.NewHandler(log, services.game),
 	}
 }

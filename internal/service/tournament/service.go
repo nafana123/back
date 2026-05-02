@@ -62,8 +62,8 @@ func (s *TournamentService) ChangeStatus(id, status string) error {
 	return nil
 }
 
-func (s *TournamentService) JoinTournament(data *tournamentdto.JoinTournamentRequest) (*model.Participant, error) {
-	tournament, err := s.tournamentRepo.GetById(data.TournamentID)
+func (s *TournamentService) JoinTournament(tournamentID string, userID int) (*model.Participant, error) {
+	tournament, err := s.tournamentRepo.GetById(tournamentID)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (s *TournamentService) JoinTournament(data *tournamentdto.JoinTournamentReq
 		return nil, fmt.Errorf("tournament is full")
 	}
 
-	exists, err := s.participantRepo.Exists(data.TournamentID, data.UserID)
+	exists, err := s.participantRepo.Exists(tournamentID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,11 @@ func (s *TournamentService) JoinTournament(data *tournamentdto.JoinTournamentReq
 		return nil, fmt.Errorf("already joined")
 	}
 
-	participant := data.ToModel()
+	participant := &model.Participant{
+		TournamentID: tournamentID,
+		UserID:       userID,
+	}
+
 	if err := s.participantRepo.Create(participant); err != nil {
 		return nil, err
 	}

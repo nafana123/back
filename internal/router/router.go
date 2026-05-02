@@ -8,6 +8,7 @@ import (
 	telegram "back/internal/handler/auth/telegram"
 	game "back/internal/handler/game"
 	"back/internal/handler/health"
+	tournament "back/internal/handler/tournament"
 	"back/internal/middleware"
 	"back/pkg/jwt"
 	"net/http"
@@ -18,13 +19,14 @@ import (
 )
 
 type RoutesDeps struct {
-	CredentialsHandler *credentials.Handler
-	GoogleHandler      *google.Handler
-	SteamHandler       *steam.Handler
-	TelegramHandler    *telegram.Handler
-	JWTService        *jwt.Service
-	TournamentHandler *admin.TournamentHandler
-	GameHandler       *game.Handler
+	CredentialsHandler     *credentials.Handler
+	GoogleHandler          *google.Handler
+	SteamHandler           *steam.Handler
+	TelegramHandler        *telegram.Handler
+	JWTService             *jwt.Service
+	TournamentHandler      *tournament.Handler
+	AdminHandler           *admin.Handler
+	GameHandler            *game.Handler
 }
 
 func New(deps RoutesDeps) http.Handler {
@@ -43,6 +45,7 @@ func New(deps RoutesDeps) http.Handler {
 		r.Get("/health", health.HealthHandler)
 		RegisterAuthRoutes(r, deps.CredentialsHandler, deps.GoogleHandler, deps.SteamHandler, deps.TelegramHandler, deps.JWTService)
 		RegisterTournamentRoutes(r, deps.TournamentHandler, deps.JWTService)
+		RegisterAdminRoutes(r, deps.AdminHandler, deps.JWTService)
 		RegisterGameRoutes(r, deps.GameHandler)
 	})
 
@@ -70,22 +73,28 @@ func RegisterAuthRoutes(
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(jwtService))
+
 		r.Post("/steam/logout", steamHandler.SteamLogout)
 		r.Get("/steam/auth", steamHandler.SteamAuth)
 	})
 }
 
-func RegisterTournamentRoutes(r chi.Router, h *admin.TournamentHandler, jwtService *jwt.Service) {
-	r.Get("/tournaments", h.GetTournaments)
-	r.Get("/tournaments/{id}", h.GetTournament)
+func RegisterTournamentRoutes(r chi.Router, tournamentHandler *tournament.Handler, jwtService *jwt.Service) {
+	r.Get("/tournaments", tournamentHandler.GetTournaments)
+	r.Get("/tournaments/{id}", tournamentHandler.GetTournament)
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(jwtService))
+		r.Post("/tournaments/{id}/join", tournamentHandler.JoinTournament)
+		r.Get("/tournaments/{id}/participants", tournamentHandler.GetParticipants)
+	})
+}
 
-		r.Post("/tournaments/{id}/join", h.JoinTournament)
-		r.Get("/tournaments/{id}/participants", h.GetParticipants)
-
+func RegisterAdminRoutes(r chi.Router, h *admin.Handler, jwtService *jwt.Service) {
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(jwtService))
 		r.Route("/admin", func(r chi.Router) {
+			r.Use(middleware.RequireAdmin())
 			r.Post("/tournaments", h.CreateTournament)
 			r.Patch("/tournaments/{id}/status", h.ChangeTournamentStatus)
 		})
