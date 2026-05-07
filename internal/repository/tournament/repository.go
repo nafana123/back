@@ -18,26 +18,20 @@ func NewTournamentRepository(db *gorm.DB) *TournamentRepository {
 
 func (r *TournamentRepository) GetALl() ([]model.Tournament, error) {
 	var tournaments []model.Tournament
-
-	result := r.db.Find(&tournaments)
-
-	if result.Error != nil {
-		return nil, result.Error
+	if err := r.db.Find(&tournaments).Error; err != nil {
+		return nil, err
 	}
-
 	return tournaments, nil
 }
 
 func (r *TournamentRepository) GetById(id string) (*model.Tournament, error) {
-	var t model.Tournament
+	var tournament model.Tournament
 
-	result := r.db.First(&t, id)
-
-	if result.Error != nil {
-		return nil, result.Error
+	if err := r.db.Where("id = ?", id).First(&tournament).Error; err != nil {
+		return nil, err
 	}
 
-	return &t, nil
+	return &tournament, nil
 }
 
 func (r *TournamentRepository) CreateTournament(tournament *model.Tournament) error {

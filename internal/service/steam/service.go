@@ -132,3 +132,13 @@ func (s *SteamService) getSteamData(steamID string) (steamdto.SteamDataResponse,
 
 	return steamData, nil
 }
+
+
+func (s *SteamService) Logout(userID int) error {
+	err := s.steamRepository.DeleteSteamUser(userID)
+	if err != nil {
+		return fmt.Errorf("ошибка удаления steam пользователя: %w", err)
+	}
+
+	return nil
+}

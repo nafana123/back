@@ -1,5 +1,10 @@
 package model
 
+const (
+	RoleUser  = "user"
+	RoleAdmin = "admin"
+)
+
 type User struct {
 	ID        int        `json:"id" gorm:"primaryKey"`
 	Login     string     `json:"login"`
