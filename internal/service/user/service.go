@@ -93,32 +93,32 @@ func (s *Service) Register(login, email, password string) error {
 	return nil
 }
 
-func (s *Service) CompleteVerification(body userdto.VerifyRequest) (string, error) {
+func (s *Service) CompleteVerification(body userdto.VerifyRequest) (authdto.AuthResponse, error) {
 	email := strings.TrimSpace(strings.ToLower(body.Email))
 	code := strings.TrimSpace(body.Code)
 
 	raw, err := s.store.Get(pendingRegistrationKey(email))
 	if err != nil {
-		return "", ErrInvalidVerificationCode
+		return authdto.AuthResponse{}, ErrInvalidVerificationCode
 	}
 
 	var pending authdto.PendingRegistration
 	if err := json.Unmarshal([]byte(raw), &pending); err != nil {
-		return "", err
+		return authdto.AuthResponse{}, err
 	}
 
 	if pending.Code != code {
-		return "", ErrInvalidVerificationCode
+		return authdto.AuthResponse{}, ErrInvalidVerificationCode
 	}
 
 	if time.Now().Unix() > pending.ExpiresAt {
 		_ = s.store.Delete(pendingRegistrationKey(email))
-		return "", ErrInvalidVerificationCode
+		return authdto.AuthResponse{}, ErrInvalidVerificationCode
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(pending.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return "", err
+		return authdto.AuthResponse{}, err
 	}
 
 	user := &model.User{
@@ -129,40 +129,48 @@ func (s *Service) CompleteVerification(body userdto.VerifyRequest) (string, erro
 	}
 
 	if err := s.userRepo.CreateUser(user); err != nil {
-		return "", err
+		return authdto.AuthResponse{}, err
 	}
 
 	_ = s.store.Delete(pendingRegistrationKey(email))
 
 	token, err := s.jwtService.GenerateToken(user.ID, user.Role)
 	if err != nil {
-		return "", err
+		return authdto.AuthResponse{}, err
 	}
 
-	return token, nil
+	return authdto.AuthResponse{
+		Token: token,
+		Login: user.Login,
+		Role: user.Role,
+	}, nil
 }
 
-func (s *Service) Login(email, password string) (string, error) {
+func (s *Service) Login(email, password string) (authdto.AuthResponse, error) {
 	user, err := s.userRepo.GetByEmail(email)
 	if err != nil {
-		return "", ErrInvalidCredentials
+		return authdto.AuthResponse{}, ErrInvalidCredentials
 	}
 
 	if user.Password == "" {
-		return "", ErrGoogleOnlyAuth
+		return authdto.AuthResponse{}, ErrGoogleOnlyAuth
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
-		return "", ErrInvalidCredentials
+		return authdto.AuthResponse{}, ErrInvalidCredentials
 	}
 
 	token, err := s.jwtService.GenerateToken(user.ID, user.Role)
 	if err != nil {
-		return "", err
+		return authdto.AuthResponse{}, err
 	}
 
-	return token, nil
+	return authdto.AuthResponse{
+		Token: token,
+		Login: user.Login,
+		Role: user.Role,
+	}, nil
 }
 
 func generateCode() string {

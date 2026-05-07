@@ -85,7 +85,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.userService.Login(req.Email, req.Password)
+	resp, err := h.userService.Login(req.Email, req.Password)
 	if err != nil {
 		switch err {
 		case userService.ErrGoogleOnlyAuth:
@@ -101,7 +101,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httputils.RespondJSON(w, http.StatusCreated, token)
+	httputils.RespondJSON(w, http.StatusCreated, resp)
 }
 
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
@@ -121,7 +121,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.userService.CompleteVerification(req)
+	resp, err := h.userService.CompleteVerification(req)
 	if err != nil {
 		switch err {
 		case userService.ErrInvalidVerificationCode:
@@ -134,5 +134,5 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httputils.RespondJSON(w, http.StatusCreated, authdto.AuthResponse{Token: token})
+	httputils.RespondJSON(w, http.StatusCreated, resp)
 }
