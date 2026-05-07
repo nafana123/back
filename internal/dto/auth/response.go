@@ -11,6 +11,8 @@ type UserData struct {
 
 type AuthResponse struct {
 	Token string `json:"token"`
+	Login string `json:"login"`
+	Role  string `json:"role"`
 }
 
 type GoogleUserResponse struct {
